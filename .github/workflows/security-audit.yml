@@ -56,8 +56,10 @@ jobs:
       - name: Test scan on mock directory
         run: |
           echo "Running audit on test directory..."
-          python3 audit.py test-openclaw --output-json test-report.json --output-md test-report.md
-          echo "✅ Scan completed"
+          # Exit codes: 0=clean, 1=HIGH findings, 2=CRITICAL findings
+          # Mock directory will have permission findings (expected), so allow non-zero
+          python3 audit.py test-openclaw --output-json test-report.json --output-md test-report.md || true
+          test -f test-report.json && test -f test-report.md && echo "✅ Scan completed, reports generated"
           
       - name: Verify outputs
         run: |
