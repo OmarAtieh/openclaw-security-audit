@@ -1,12 +1,16 @@
-name: OpenClaw Security Audit
+name: OpenClaw Security Audit CI
 
 on:
-  workflow_dispatch:  # Manual trigger only — this is an example workflow for users
-  workflow_dispatch:  # Allow manual triggers
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:  # Manual trigger for testing
 
 jobs:
-  security-scan:
+  test-tool:
     runs-on: ubuntu-latest
+    name: Test Security Audit Tool
     
     steps:
       - name: Checkout code
@@ -17,69 +21,63 @@ jobs:
         with:
           python-version: '3.11'
           
-      - name: Download OpenClaw Security Audit Tool
+      - name: Test imports
         run: |
-          curl -sL https://github.com/OmarAtieh/openclaw-security-audit/archive/refs/tags/v1.0.0.tar.gz | tar xz
-          chmod +x openclaw-security-audit-1.0.0/audit.py
+          echo "Testing module imports..."
+          python3 -c "import sys; sys.path.insert(0, '.'); from modules.base import Finding; print('✅ base module OK')"
+          python3 -c "import sys; sys.path.insert(0, '.'); from modules.config_scanner import ConfigScanner; print('✅ config_scanner OK')"
+          python3 -c "import sys; sys.path.insert(0, '.'); from modules.skill_scanner import SkillScanner; print('✅ skill_scanner OK')"
+          python3 -c "import sys; sys.path.insert(0, '.'); from modules.cve_mapper import CVEMapper; print('✅ cve_mapper OK')"
+          python3 -c "import sys; sys.path.insert(0, '.'); from modules.channel_auditor import ChannelAuditor; print('✅ channel_auditor OK')"
           
-      - name: Run Security Scan
-        id: scan
+      - name: Test CLI help
+        run: |
+          echo "Testing --help flag..."
+          python3 audit.py --help
+          echo "✅ Help output successful"
+          
+      - name: Test version flag
+        run: |
+          echo "Testing --version flag..."
+          python3 audit.py --version
+          echo "✅ Version output successful"
+          
+      - name: Lint with pylint (optional)
         continue-on-error: true
         run: |
-          cd openclaw-security-audit-1.0.0
-          python3 audit.py \
-            --openclaw-dir ~/.openclaw \
-            --output-json ../audit-report.json \
-            --output-md ../audit-report.md \
-            --quiet
-          echo "exit_code=$?" >> $GITHUB_OUTPUT
+          pip install pylint
+          pylint audit.py modules/*.py --disable=all --enable=E,F --exit-zero
           
-      - name: Upload JSON Report
+      - name: Create test OpenClaw directory
+        run: |
+          mkdir -p test-openclaw
+          echo '{"test": "config"}' > test-openclaw/openclaw.json
+          
+      - name: Test scan on mock directory
+        run: |
+          echo "Running audit on test directory..."
+          python3 audit.py test-openclaw --output-json test-report.json --output-md test-report.md
+          echo "✅ Scan completed"
+          
+      - name: Verify outputs
+        run: |
+          ls -lh test-report.json test-report.md
+          echo "JSON report preview:"
+          head -20 test-report.json
+          echo ""
+          echo "Markdown report preview:"
+          head -30 test-report.md
+          
+      - name: Upload test reports
         uses: actions/upload-artifact@v4
         with:
-          name: security-audit-json
-          path: audit-report.json
-          retention-days: 90
+          name: test-reports
+          path: |
+            test-report.json
+            test-report.md
+          retention-days: 7
           
-      - name: Upload Markdown Report
-        uses: actions/upload-artifact@v4
-        with:
-          name: security-audit-markdown
-          path: audit-report.md
-          retention-days: 90
-          
-      - name: Comment PR with Results
-        if: github.event_name == 'pull_request'
-        uses: actions/github-script@v6
-        with:
-          script: |
-            const fs = require('fs');
-            const report = fs.readFileSync('audit-report.md', 'utf8');
-            const truncated = report.length > 65000 
-              ? report.substring(0, 65000) + '\n\n... (truncated, see artifacts for full report)'
-              : report;
-              
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: `## 🛡️ OpenClaw Security Audit Results\n\n${truncated}`
-            });
-            
-      - name: Check Severity and Fail if Critical
-        if: steps.scan.outputs.exit_code == '2'
+      - name: Success summary
         run: |
-          echo "::error::CRITICAL security issues found!"
-          cat audit-report.md
-          exit 1
-          
-      - name: Warn if High Severity Issues
-        if: steps.scan.outputs.exit_code == '1'
-        run: |
-          echo "::warning::HIGH severity security issues found. Review recommended."
-          cat audit-report.md
-          
-      - name: Success
-        if: steps.scan.outputs.exit_code == '0'
-        run: |
-          echo "::notice::✅ No critical or high security issues found!"
+          echo "::notice::✅ All CI checks passed!"
+          echo "::notice::Tool is ready for use"
