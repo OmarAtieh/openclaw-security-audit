@@ -1,0 +1,85 @@
+version: '3.8'
+
+services:
+  # Example: Run security audit as a scheduled job
+  openclaw-audit:
+    image: python:3.11-slim
+    container_name: openclaw-security-audit
+    volumes:
+      # Mount the audit tool
+      - ./audit.py:/usr/local/bin/openclaw-audit:ro
+      - ./known_malicious.json:/usr/local/share/known_malicious.json:ro
+      
+      # Mount OpenClaw directory (adjust path as needed)
+      - ~/.openclaw:/root/.openclaw:ro
+      
+      # Mount output directory for reports
+      - ./reports:/reports
+      
+    working_dir: /app
+    
+    # Run the audit and generate reports
+    command: >
+      sh -c "
+        chmod +x /usr/local/bin/openclaw-audit &&
+        python3 /usr/local/bin/openclaw-audit
+          --openclaw-dir /root/.openclaw
+          --output-json /reports/audit-$(date +%Y-%m-%d-%H%M).json
+          --output-md /reports/audit-$(date +%Y-%m-%d-%H%M).md
+      "
+    
+    # Restart policy for scheduled runs (use with cron or external scheduler)
+    restart: "no"
+    
+    # Optional: Set resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+
+  # Example: Continuous monitoring with periodic scans
+  openclaw-audit-daemon:
+    image: python:3.11-slim
+    container_name: openclaw-audit-daemon
+    volumes:
+      - ./audit.py:/usr/local/bin/openclaw-audit:ro
+      - ./known_malicious.json:/usr/local/share/known_malicious.json:ro
+      - ~/.openclaw:/root/.openclaw:ro
+      - ./reports:/reports
+      
+    command: >
+      sh -c "
+        chmod +x /usr/local/bin/openclaw-audit &&
+        while true; do
+          echo '[$(date)] Running security audit...' &&
+          python3 /usr/local/bin/openclaw-audit
+            --openclaw-dir /root/.openclaw
+            --output-json /reports/audit-latest.json
+            --quiet &&
+          echo '[$(date)] Audit complete. Sleeping 1 hour...' &&
+          sleep 3600
+        done
+      "
+    
+    restart: unless-stopped
+    
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 128M
+
+# Usage:
+# ------
+# One-time scan:
+#   docker-compose run --rm openclaw-audit
+#
+# Continuous monitoring:
+#   docker-compose up -d openclaw-audit-daemon
+#
+# View logs:
+#   docker-compose logs -f openclaw-audit-daemon
+#
+# Stop daemon:
+#   docker-compose down

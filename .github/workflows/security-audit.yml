@@ -1,0 +1,91 @@
+name: OpenClaw Security Audit
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    # Run daily at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:  # Allow manual triggers
+
+jobs:
+  security-scan:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          
+      - name: Download OpenClaw Security Audit Tool
+        run: |
+          curl -sL https://github.com/your-org/openclaw-security-audit/archive/refs/tags/v1.0.0.tar.gz | tar xz
+          chmod +x openclaw-security-audit-1.0.0/audit.py
+          
+      - name: Run Security Scan
+        id: scan
+        continue-on-error: true
+        run: |
+          cd openclaw-security-audit-1.0.0
+          python3 audit.py \
+            --openclaw-dir ~/.openclaw \
+            --output-json ../audit-report.json \
+            --output-md ../audit-report.md \
+            --quiet
+          echo "exit_code=$?" >> $GITHUB_OUTPUT
+          
+      - name: Upload JSON Report
+        uses: actions/upload-artifact@v3
+        with:
+          name: security-audit-json
+          path: audit-report.json
+          retention-days: 90
+          
+      - name: Upload Markdown Report
+        uses: actions/upload-artifact@v3
+        with:
+          name: security-audit-markdown
+          path: audit-report.md
+          retention-days: 90
+          
+      - name: Comment PR with Results
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            const report = fs.readFileSync('audit-report.md', 'utf8');
+            const truncated = report.length > 65000 
+              ? report.substring(0, 65000) + '\n\n... (truncated, see artifacts for full report)'
+              : report;
+              
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## 🛡️ OpenClaw Security Audit Results\n\n${truncated}`
+            });
+            
+      - name: Check Severity and Fail if Critical
+        if: steps.scan.outputs.exit_code == '2'
+        run: |
+          echo "::error::CRITICAL security issues found!"
+          cat audit-report.md
+          exit 1
+          
+      - name: Warn if High Severity Issues
+        if: steps.scan.outputs.exit_code == '1'
+        run: |
+          echo "::warning::HIGH severity security issues found. Review recommended."
+          cat audit-report.md
+          
+      - name: Success
+        if: steps.scan.outputs.exit_code == '0'
+        run: |
+          echo "::notice::✅ No critical or high security issues found!"

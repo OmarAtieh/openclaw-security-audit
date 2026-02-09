@@ -1,0 +1,100 @@
+{
+  "_metadata": {
+    "description": "Known malicious OpenClaw/ClawHub skill indicators",
+    "last_updated": "2026-02-09",
+    "sources": [
+      "Snyk Research (Feb 2-4, 2026)",
+      "Koi Security Clawdex (Feb 3, 2026)",
+      "The Hacker News (Feb 4, 2026)",
+      "SecurityAffairs (Feb 3, 2026)"
+    ],
+    "update_instructions": "See UPDATE_GUIDE.md for how to add new entries"
+  },
+  "skills": [
+    {
+      "name": "clawhub",
+      "author": "zaycv",
+      "threat": "Infostealer (Atomic macOS Stealer / Windows trojan)",
+      "description": "Masquerades as official ClawHub CLI tool. Downloads malware via base64-encoded shell commands or password-protected zips.",
+      "source": "Snyk Research, Feb 2 2026",
+      "downloads_at_discovery": 7743,
+      "status": "removed"
+    },
+    {
+      "name": "clawdhub1",
+      "author": "zaycv",
+      "threat": "Infostealer (variant of clawhub)",
+      "description": "Renamed variant after original removal. Same attack chain. Active as of Feb 4, 2026.",
+      "source": "Snyk Research, Feb 3 2026",
+      "downloads_at_discovery": 100,
+      "status": "active_threat"
+    },
+    {
+      "name": "openclawcli",
+      "author": "Ddoy233",
+      "threat": "Trojanized executable with DLLs (infostealer)",
+      "description": "GitHub-hosted component of clawhub campaign. Password-protected zip (password: openclaw) to evade scanners.",
+      "source": "Snyk Research, Feb 2026",
+      "platform": "github",
+      "status": "active_threat"
+    }
+  ],
+  "iocs": {
+    "ips": [
+      "91.92.242.30"
+    ],
+    "domains": [
+      "download.setup-service.com"
+    ],
+    "urls": [
+      "https://glot.io/snippets/hfd3x9ueu5",
+      "https://github.com/Ddoy233/openclawcli"
+    ],
+    "github_users": [
+      "Ddoy233"
+    ],
+    "clawhub_users": [
+      "zaycv"
+    ]
+  },
+  "malicious_patterns": {
+    "skill_md_patterns": [
+      "base64 -D | bash",
+      "base64 --decode | sh",
+      "curl .* | bash",
+      "curl .* | sh",
+      "wget .* | bash",
+      "wget .* | sh",
+      "eval $(curl",
+      "eval $(wget",
+      "python -c \"import urllib",
+      "python3 -c \"import urllib",
+      "powershell -enc",
+      "powershell -e ",
+      "IEX(New-Object",
+      "Invoke-Expression",
+      "glot.io/snippets",
+      "password-protected",
+      "setup-service.com"
+    ],
+    "suspicious_indicators": [
+      "npm install -g from unknown repo",
+      "pip install from raw URL",
+      "chmod +x && ./",
+      "download and execute",
+      "run this command first",
+      "requires system access",
+      "needs root permissions",
+      "disable antivirus"
+    ]
+  },
+  "threat_categories": {
+    "credential_theft": "Skills that exfiltrate API keys, tokens, or passwords",
+    "reverse_shell": "Skills that establish remote access to the host",
+    "infostealer": "Skills that collect and exfiltrate user data (AMOS, keyloggers)",
+    "crypto_miner": "Skills that use host resources for cryptocurrency mining",
+    "supply_chain": "Skills that modify other skills or system configs",
+    "data_exfil": "Skills that send workspace data to external servers",
+    "prompt_injection": "Skills that modify agent identity or behavior"
+  }
+}
