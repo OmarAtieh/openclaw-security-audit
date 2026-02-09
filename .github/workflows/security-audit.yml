@@ -1,13 +1,7 @@
 name: OpenClaw Security Audit
 
 on:
-  push:
-    branches: [ main, develop ]
-  pull_request:
-    branches: [ main ]
-  schedule:
-    # Run daily at 2 AM UTC
-    - cron: '0 2 * * *'
+  workflow_dispatch:  # Manual trigger only — this is an example workflow for users
   workflow_dispatch:  # Allow manual triggers
 
 jobs:
@@ -25,7 +19,7 @@ jobs:
           
       - name: Download OpenClaw Security Audit Tool
         run: |
-          curl -sL https://github.com/your-org/openclaw-security-audit/archive/refs/tags/v1.0.0.tar.gz | tar xz
+          curl -sL https://github.com/OmarAtieh/openclaw-security-audit/archive/refs/tags/v1.0.0.tar.gz | tar xz
           chmod +x openclaw-security-audit-1.0.0/audit.py
           
       - name: Run Security Scan
