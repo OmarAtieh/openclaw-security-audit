@@ -102,7 +102,12 @@ class CVEMapper(BaseModule):
         try:
             with open(path) as f:
                 data = json.load(f)
-            return data.get("version")
+            # Only use if it looks like an openclaw-related package
+            name = data.get("name", "").lower()
+            if "openclaw" in name or "claw" in name:
+                return data.get("version")
+            # Also accept if it has a version and is in a dir that looks right
+            return None
         except Exception:
             return None
 
