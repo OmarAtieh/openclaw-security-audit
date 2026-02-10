@@ -11,6 +11,8 @@ under ``modules/`` that inherits from ``BaseModule`` and implements
 import json
 import os
 import sys
+import time
+import signal
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Any
@@ -23,8 +25,11 @@ from modules.config_scanner import ConfigScanner
 from modules.skill_scanner import SkillScanner
 from modules.cve_mapper import CVEMapper
 from modules.channel_auditor import ChannelAuditor
+from modules.config_hardening import ConfigHardeningModule
+from modules.permission_auditor import PermissionAuditorModule
+from modules.behavioral_baseline import BehavioralBaselineModule
 
-VERSION = "2.0.0"
+VERSION = "2.1.0"
 
 SEVERITY_ORDER = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3, "INFO": 4}
 SEVERITY_COLORS = {
@@ -48,9 +53,12 @@ class SecurityAuditor:
         # Register modules
         self.modules = [
             ConfigScanner(),
+            ConfigHardeningModule(),
+            PermissionAuditorModule(),
             SkillScanner(),
             CVEMapper(),
             ChannelAuditor(),
+            BehavioralBaselineModule(),
         ]
 
     def run_all_checks(self) -> None:
@@ -207,6 +215,12 @@ def main():
                         help="Save JSON report to file")
     parser.add_argument("--output-md", metavar="FILE",
                         help="Save Markdown report to file")
+    parser.add_argument("--report", choices=["terminal", "json", "markdown"],
+                        help="Report format (shorthand for --output-* flags)")
+    parser.add_argument("--watch", action="store_true",
+                        help="Continuous monitoring mode - run checks periodically")
+    parser.add_argument("--watch-interval", type=int, default=300, metavar="SECONDS",
+                        help="Interval between scans in watch mode (default: 300)")
     parser.add_argument("--quiet", action="store_true",
                         help="Suppress terminal output")
     parser.add_argument("--version", action="version",
@@ -215,23 +229,101 @@ def main():
     args = parser.parse_args()
 
     oc_dir = args.openclaw_dir or args.openclaw_dir_flag
-    auditor = SecurityAuditor(openclaw_dir=oc_dir)
-    auditor.run_all_checks()
-
-    if not args.quiet:
-        auditor.output_terminal()
-    if args.output_json:
-        auditor.output_json(args.output_json)
-    if args.output_md:
-        auditor.output_markdown(args.output_md)
-
-    stats = auditor.get_summary_stats()
-    if stats["CRITICAL"] > 0:
-        sys.exit(2)
-    elif stats["HIGH"] > 0:
-        sys.exit(1)
+    
+    # Handle --report shorthand
+    if args.report:
+        if args.report == "json":
+            args.output_json = f"openclaw-security-{datetime.now().strftime('%Y%m%d-%H%M%S')}.json"
+        elif args.report == "markdown":
+            args.output_md = f"openclaw-security-{datetime.now().strftime('%Y%m%d-%H%M%S')}.md"
+    
+    # Watch mode
+    if args.watch:
+        print(f"🔄 Continuous monitoring enabled (interval: {args.watch_interval}s)")
+        print("Press Ctrl+C to stop\n")
+        
+        # Handle graceful shutdown
+        def signal_handler(sig, frame):
+            print("\n\n⏹️  Monitoring stopped by user")
+            sys.exit(0)
+        
+        signal.signal(signal.SIGINT, signal_handler)
+        signal.signal(signal.SIGTERM, signal_handler)
+        
+        iteration = 0
+        previous_findings = []
+        
+        while True:
+            iteration += 1
+            print(f"{'=' * 80}")
+            print(f"Scan #{iteration} — {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            print(f"{'=' * 80}\n")
+            
+            auditor = SecurityAuditor(openclaw_dir=oc_dir)
+            auditor.run_all_checks()
+            
+            # Detect changes from previous scan
+            if previous_findings:
+                new_findings = set(
+                    (f.severity, f.title, f.affected_path)
+                    for f in auditor.findings
+                )
+                old_findings = set(
+                    (f.severity, f.title, f.affected_path)
+                    for f in previous_findings
+                )
+                
+                added = new_findings - old_findings
+                removed = old_findings - new_findings
+                
+                if added or removed:
+                    print(f"\n🔔 CHANGES DETECTED:")
+                    if added:
+                        print(f"  ✅ New findings: {len(added)}")
+                        for severity, title, path in list(added)[:5]:
+                            print(f"     • [{severity}] {title}")
+                    if removed:
+                        print(f"  ✅ Resolved: {len(removed)}")
+                        for severity, title, path in list(removed)[:5]:
+                            print(f"     • [{severity}] {title}")
+                    print()
+            
+            if not args.quiet:
+                auditor.output_terminal()
+            if args.output_json:
+                # Append iteration to filename in watch mode
+                base = Path(args.output_json)
+                output_file = base.parent / f"{base.stem}-{iteration}{base.suffix}"
+                auditor.output_json(str(output_file))
+            if args.output_md:
+                base = Path(args.output_md)
+                output_file = base.parent / f"{base.stem}-{iteration}{base.suffix}"
+                auditor.output_markdown(str(output_file))
+            
+            previous_findings = auditor.findings
+            
+            print(f"\n⏳ Next scan in {args.watch_interval} seconds...\n")
+            time.sleep(args.watch_interval)
+    
     else:
-        sys.exit(0)
+        # Single scan mode
+        auditor = SecurityAuditor(openclaw_dir=oc_dir)
+        auditor.run_all_checks()
+
+        if not args.quiet:
+            auditor.output_terminal()
+        if args.output_json:
+            auditor.output_json(args.output_json)
+        if args.output_md:
+            auditor.output_markdown(args.output_md)
+
+        stats = auditor.get_summary_stats()
+        if stats["CRITICAL"] > 0:
+            sys.exit(2)
+        elif stats["HIGH"] > 0:
+            sys.exit(1)
+        else:
+            sys.exit(0)
 
 
 if __name__ == "__main__":
