@@ -18,17 +18,50 @@ The February 2026 ClawHub supply chain attack — where malicious skills were up
 
 ## ✨ Features
 
+### Why This Tool Complements OpenClaw's Native VirusTotal Integration
+
+OpenClaw now includes **built-in VirusTotal scanning** for SHA-256 hash checking against known malware. This tool goes beyond hash matching to provide comprehensive security hardening that VirusTotal cannot detect:
+
+- **Configuration hardening** — Verify exec security modes, tool confirmations, network binding
+- **Permission auditing** — Deep filesystem permission analysis on configs, secrets, and skills
+- **Behavioral analysis** — Detect anomalous patterns like unusual network connections, suspicious command execution
+- **Continuous monitoring** — Run checks periodically with change detection
+- **Compliance reporting** — Generate markdown/JSON reports for security audits
+
+**Think of this as the security layer AFTER VirusTotal catches known malware.**
+
 ### Comprehensive Security Checks
 
-- **🔐 File Permissions** — Detect world-readable configs, `.env` files, and session tokens
+#### Configuration Hardening (NEW)
+- **⚙️ Exec Security Mode** — Verify exec tool is not set to dangerous 'full' mode
+- **🛡️ Tool Confirmation** — Ensure dangerous tools require user confirmation
+- **🔑 Provider Key Protection** — Detect API keys stored in plaintext config files
+- **🪪 Agent Identity** — Check integrity monitoring and file permissions
+- **📦 Skill Security** — Verify skill allowlisting and auto-update settings
+- **🌐 Network Binding** — Ensure services aren't exposed on 0.0.0.0
+- **📋 Audit Configuration** — Verify logging settings and retention policies
+
+#### Permission Auditing (ENHANCED)
+- **🔐 Config File Permissions** — Detect world-readable openclaw.json, .env files
+- **🗝️ Secret Storage** — Audit permissions on credentials, tokens, keys
+- **📂 Skill Directories** — Check for world-writable skill folders
+- **📄 Log Files** — Verify audit logs have proper access restrictions
+- **🏠 Home Directory** — Scan for exposed .env files in home directory
+
+#### Behavioral Analysis (NEW)
+- **🌍 Network Patterns** — Detect hardcoded IPs, suspicious domains in skills
+- **🚨 File Access** — Flag skills accessing protected paths (/etc/shadow, SSH keys)
+- **⚡ Process Spawning** — Identify suspicious command execution patterns
+- **📊 Size Anomalies** — Detect unusually large skills (possible data embedding)
+- **📤 Data Exfiltration** — Pattern matching for potential data leakage
+
+#### Core Security Checks
 - **🗝️ Credential Exposure** — Find API keys (OpenAI, Anthropic, Google, AWS) in plaintext configs
 - **🌐 Network Exposure** — Identify admin ports exposed on public interfaces
 - **📦 Skill Integrity** — Verify installed skills, detect tampering and missing manifests
-- **☠️ Malicious Skill Detection** — Check against known malicious skill signatures (database updated as new threats emerge)
+- **☠️ Malicious Skill Detection** — Check against known malicious skill signatures (341 IOCs)
 - **🔒 Session Management** — Audit token storage and rotation practices
 - **🔌 MCP Security** — Check for insecure MCP server configurations
-- **🔑 API Key Hygiene** — Verify proper secret management practices
-- **📋 Audit Logging** — Ensure logging is enabled and properly secured
 - **💉 Prompt Injection Surface** — Identify unprotected tool access and exposed system prompts
 
 ### Multiple Output Formats
@@ -73,10 +106,30 @@ pip install openclaw-security-audit
 ./audit.py
 ```
 
-**Generate all report formats:**
+**Generate markdown report:**
 
 ```bash
-./audit.py --output-json report.json --output-md report.md
+./audit.py --report markdown
+# Creates timestamped file: openclaw-security-YYYYMMDD-HHMMSS.md
+```
+
+**Generate JSON report for automation:**
+
+```bash
+./audit.py --output-json report.json
+```
+
+**Continuous monitoring mode (watch for changes):**
+
+```bash
+./audit.py --watch
+# Runs scan every 5 minutes, alerts on new findings
+```
+
+**Custom monitoring interval:**
+
+```bash
+./audit.py --watch --watch-interval 600  # Every 10 minutes
 ```
 
 **Scan custom OpenClaw directory:**

@@ -5,6 +5,71 @@ All notable changes to OpenClaw Security Audit Tool will be documented in this f
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - 2026-02-10
+
+### Added - VirusTotal Complement Features
+
+This release positions the tool as a **complement to OpenClaw's native VirusTotal integration**, not a replacement. We provide security hardening that hash-based malware detection cannot offer.
+
+#### New Modules
+
+- **🔧 Config Hardening Module** (`modules/config_hardening.py`)
+  - Verify exec security mode (deny/allowlist/full) — flags dangerous 'full' mode
+  - Check tool confirmation requirements for dangerous tools (exec, shell, eval, browser)
+  - Detect provider API keys in plaintext config (should use env vars)
+  - Agent identity integrity monitoring verification
+  - Skill allowlisting and auto-update security checks
+  - Network binding security (prevent 0.0.0.0 exposure)
+  - Audit logging configuration validation
+
+- **🔐 Permission Auditor Module** (`modules/permission_auditor.py`)
+  - Comprehensive file permission checking on config files
+  - Secret storage permission auditing (credentials, tokens, keys)
+  - Skill directory permission verification (detect world-writable dirs)
+  - Log file access restriction checks
+  - Home directory .env file scanning
+
+- **🎯 Behavioral Baseline Module** (`modules/behavioral_baseline.py`)
+  - Network pattern analysis — detect hardcoded IPs, suspicious domains
+  - File access monitoring — flag skills accessing /etc/shadow, SSH keys
+  - Process spawning pattern detection — identify malicious command execution
+  - Skill size anomaly detection — find unusually large skills (data embedding)
+  - Data exfiltration pattern matching
+
+#### New Features
+
+- **⏱️ Continuous Monitoring Mode** (`--watch`)
+  - Run scans periodically (default: every 5 minutes)
+  - Detect and alert on changes between scans
+  - Configurable interval via `--watch-interval` flag
+  - Graceful shutdown on Ctrl+C
+  - Timestamped reports in watch mode
+
+- **📋 Report Shorthand** (`--report`)
+  - `--report markdown` — auto-generates timestamped markdown report
+  - `--report json` — auto-generates timestamped JSON report
+  - `--report terminal` — explicit terminal-only output
+
+### Changed
+
+- **Version:** Bumped to 2.1.0 (from 2.0.0)
+- **README:** Updated with VirusTotal complement positioning
+- **README:** Added new module descriptions and --watch usage examples
+- **Module Count:** Now 7 modules (was 4)
+
+### Performance
+
+- All new checks are non-blocking and fail gracefully
+- Watch mode efficiently tracks changes without full re-scan overhead
+- Permission checks use stat() syscalls (minimal I/O)
+
+### Documentation
+
+- README now explicitly positions tool as VirusTotal complement
+- Added "Why This Tool Complements OpenClaw's Native VirusTotal Integration" section
+- Updated usage examples with --watch and --report flags
+- Competitive analysis document (`COMPETITIVE-ANALYSIS.md`) added to repo
+
 ## [1.2.0] - 2026-02-09
 
 ### Added
